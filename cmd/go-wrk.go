@@ -38,6 +38,7 @@ func main() {
 
 	results := httptest.RunTest(conf)
 
+	fmt.Println("Requests count: ", results.RequestCount)
 	fmt.Println("Connect latencies:")
 	analyzeResults(results.ConnectLatencies, results.RequestCount)
 	fmt.Println("Request latencies:")
