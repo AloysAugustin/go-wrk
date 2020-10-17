@@ -30,6 +30,7 @@ func RunTest(conf *TestConfig) *TestResults {
 	rand.Seed(time.Now().UnixNano())
 	expectedRequests := int(2.0 * conf.ConnectionRate * conf.Duration.Seconds())
 	requestDelay := time.Nanosecond * time.Duration(1.0e9/conf.ConnectionRate)
+	lateCount := 0
 
 	results := &TestResults{
 		RequestCount:     0,
@@ -45,16 +46,18 @@ func RunTest(conf *TestConfig) *TestResults {
 		go makeOneRequest(conf, results)
 
 		nextTime = nextTime.Add(requestDelay)
-		// need to sleep for nextTime - time.Now()
-		now := time.Now()
-		if nextTime.Before(now) {
-			logrus.Warnf("Running late, results will be meaningless")
-		} else {
-			time.Sleep(nextTime.Sub(now))
+		sleepTime := nextTime.Sub(time.Now())
+		if sleepTime < 0 {
+			lateCount++
+		} else if sleepTime > 20*time.Microsecond {
+			<-time.After(sleepTime)
 		}
 	}
 
-	results.lock.Lock() // Prevent unfinished requests from mofifying results
+	results.lock.Lock() // Prevent unfinished requests from modifying results
+	if lateCount > 0 {
+		logrus.Warnf("Late requests: %d", lateCount)
+	}
 	return results
 }
 
