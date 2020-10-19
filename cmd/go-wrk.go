@@ -65,7 +65,7 @@ func analyzeResults(latencies []time.Duration, count int, cutoff float64) {
 	ignored := 0
 	for i := 0; i < count; i++ {
 		val := float64(latencies[i])
-		if cutoff > 0 && val < cutoff*float64(time.Second) {
+		if cutoff <= 0 || val < cutoff*float64(time.Second) {
 			floats = append(floats, val)
 		} else {
 			ignored++
