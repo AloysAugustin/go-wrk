@@ -1,9 +1,11 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
 	"io/ioutil"
+	"os"
 	"strings"
 	"time"
 
@@ -19,6 +21,7 @@ func main() {
 	duration := flag.Int("duration", 10, "test duration (s)")
 	urlFile := flag.String("url-file", "", "file storing urls to test, one per line")
 	analysisCutoff := flag.Float64("analysis-cutoff", 0, "drop results with latency greater than this from the result analysis (outlier filter)")
+	dumpFile := flag.String("results-dump", "", "file to dump all results to for subsequent analysis")
 
 	flag.Parse()
 
@@ -44,6 +47,13 @@ func main() {
 	analyzeResults(results.ConnectLatencies, results.RequestCount, *analysisCutoff)
 	fmt.Println("Request latencies:")
 	analyzeResults(results.RequestLatencies, results.RequestCount, *analysisCutoff)
+
+	if *dumpFile != "" {
+		err := dumpResults(conf, results, *dumpFile)
+		if err != nil {
+			logrus.Errorf("Cannot dump results to %s: %v", *dumpFile, err)
+		}
+	}
 }
 
 func loadUrlsFromFile(conf *httptest.TestConfig, filename string) (err error) {
@@ -91,4 +101,31 @@ func analyzeResults(latencies []time.Duration, count int, cutoff float64) {
 	fmt.Println("     99.9%:  ", time.Duration(p))
 	p, _ = stats.Percentile(floats, 99.99)
 	fmt.Println("     99.99%: ", time.Duration(p))
+}
+
+func dumpResults(conf *httptest.TestConfig, results *httptest.TestResults, filename string) error {
+	file, err := os.Create(filename)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	data := make(map[string]interface{})
+	data["results"] = make([]map[string]interface{}, results.RequestCount)
+	for i := 0; i < results.RequestCount; i++ {
+		item := make(map[string]interface{})
+		item["url"] = conf.URLs[results.RequestIndices[i]]
+		item["connect_latency"] = results.ConnectLatencies[i]
+		item["request_latency"] = results.RequestLatencies[i]
+		data["results"].([]map[string]interface{})[i] = item
+	}
+
+	enc := json.NewEncoder(file)
+	err = enc.Encode(data)
+	if err != nil {
+		return err
+	}
+
+	file.Sync()
+	return nil
 }
