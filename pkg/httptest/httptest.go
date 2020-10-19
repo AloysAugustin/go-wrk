@@ -80,6 +80,8 @@ func makeOneRequest(conf *TestConfig, results *TestResults) {
 		logrus.Errorf("Cannot connect to %s: %v", req.URL.Host, err)
 		return
 	}
+	defer conn.Close()
+
 	req.Write(conn)
 	buf := bufio.NewReader(conn)
 	resp, err := http.ReadResponse(buf, req)
