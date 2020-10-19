@@ -15,9 +15,10 @@ import (
 func main() {
 	conf := &httptest.TestConfig{}
 
-	rate := flag.Int("rate", 100, "connection rate (req/s)")
+	rate := flag.Float64("rate", 100, "connection rate (req/s)")
 	duration := flag.Int("duration", 10, "test duration (s)")
 	urlFile := flag.String("url-file", "", "file storing urls to test, one per line")
+	analysisCutoff := flag.Float64("analysis-cutoff", 0, "drop results with latency greater than this from the result analysis (outlier filter)")
 
 	flag.Parse()
 
@@ -28,7 +29,7 @@ func main() {
 		}
 	}
 	conf.URLs = append(conf.URLs, flag.Args()...)
-	conf.ConnectionRate = float64(*rate)
+	conf.ConnectionRate = *rate
 	conf.Duration = time.Duration(*duration) * time.Second
 
 	if len(conf.URLs) == 0 {
@@ -40,9 +41,9 @@ func main() {
 
 	fmt.Println("Requests count: ", results.RequestCount)
 	fmt.Println("Connect latencies:")
-	analyzeResults(results.ConnectLatencies, results.RequestCount)
+	analyzeResults(results.ConnectLatencies, results.RequestCount, *analysisCutoff)
 	fmt.Println("Request latencies:")
-	analyzeResults(results.RequestLatencies, results.RequestCount)
+	analyzeResults(results.RequestLatencies, results.RequestCount, *analysisCutoff)
 }
 
 func loadUrlsFromFile(conf *httptest.TestConfig, filename string) (err error) {
@@ -59,10 +60,19 @@ func loadUrlsFromFile(conf *httptest.TestConfig, filename string) (err error) {
 	return nil
 }
 
-func analyzeResults(latencies []time.Duration, count int) {
-	floats := make([]float64, count)
+func analyzeResults(latencies []time.Duration, count int, cutoff float64) {
+	floats := make([]float64, 0, count)
+	ignored := 0
 	for i := 0; i < count; i++ {
-		floats[i] = float64(latencies[i])
+		val := float64(latencies[i])
+		if cutoff > 0 && val < cutoff*float64(time.Second) {
+			floats = append(floats, val)
+		} else {
+			ignored++
+		}
+	}
+	if ignored > 0 {
+		logrus.Warnf("Dropped %d measurements due to cutoff", ignored)
 	}
 	mean, _ := stats.Mean(floats)
 	fmt.Println("Average:     ", time.Duration(mean))
