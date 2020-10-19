@@ -68,7 +68,7 @@ func makeOneRequest(conf *TestConfig, results *TestResults) {
 	req, err := http.NewRequest("GET", uri, nil)
 	if err != nil {
 		logrus.Errorf("Cannot create http request for %s: %v", uri, err)
-		panic(1)
+		return
 	}
 	// Force connection closing at the end
 	req.Close = true
@@ -77,8 +77,8 @@ func makeOneRequest(conf *TestConfig, results *TestResults) {
 	conn, err := net.Dial("tcp", req.URL.Host+":80")
 	connTime := time.Now()
 	if err != nil {
-		logrus.Errorf("Cannot connect to %s", req.URL.Host)
-		panic(1)
+		logrus.Errorf("Cannot connect to %s: %v", req.URL.Host, err)
+		return
 	}
 	req.Write(conn)
 	buf := bufio.NewReader(conn)
@@ -86,7 +86,7 @@ func makeOneRequest(conf *TestConfig, results *TestResults) {
 	respTime := time.Now()
 	if resp.StatusCode != 200 {
 		logrus.Errorf("HTTP error: %s", resp.Status)
-		panic(1)
+		return
 	}
 
 	connDuration := connTime.Sub(startTime)
