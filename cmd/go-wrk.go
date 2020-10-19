@@ -126,6 +126,6 @@ func dumpResults(conf *httptest.TestConfig, results *httptest.TestResults, filen
 		return err
 	}
 
-	file.Sync()
-	return nil
+	err = file.Sync()
+	return err
 }
